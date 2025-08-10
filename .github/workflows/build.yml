@@ -15,6 +15,7 @@ jobs:
 
       - name: Get next tag
         id: tagger
+        shell: bash
         run: |
           git fetch --tags
           latest=$(git tag --sort=-v:refname | head -n 1)
