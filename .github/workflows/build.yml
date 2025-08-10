@@ -1,0 +1,52 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get next tag
+        id: tagger
+        run: |
+          git fetch --tags
+
+          latest=$(git tag --sort=-v:refname | head -n 1)
+          if [ -z "$latest" ]; then
+            latest="v0.0.0"
+          fi
+          echo "Latest tag: $latest"
+
+          base=${latest%.*}
+          patch=${latest##*.}
+          next_tag="$base.$((patch+1))"
+          echo "next_tag=$next_tag" >> $GITHUB_OUTPUT
+
+      - name: Install Nuget packages
+        run: nuget restore patchershit.sln
+          
+      - name: Setup msbuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: 'latest'
+
+      - name: Build
+        run: msbuild patchershit.sln /p:Configuration=Release /p:Platform="Any CPU"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tagger.outputs.next_tag }}
+          name: Release ${{ steps.tagger.outputs.next_tag }}
+          body: |
+            Automated build for ${{ steps.tagger.outputs.next_tag }}
+          files: patchershit/bin/Release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
